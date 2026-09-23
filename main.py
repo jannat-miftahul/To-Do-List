@@ -7,6 +7,7 @@ from typing import Annotated
 from database import engine, SessionLocal
 from fastapi.responses import JSONResponse
 from typing import Optional
+from router import auth
 
 app = FastAPI()
 
@@ -26,6 +27,7 @@ class TodoUpdate(BaseModel):
 
 
 models.Base.metadata.create_all(bind=engine)
+app.include_router(auth.router)
 
 def get_db():
     db = SessionLocal()
