@@ -8,6 +8,7 @@ from database import SessionLocal
 from models import Users
 from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from jose import jwt, JWTError
 
 router = APIRouter()
 
@@ -23,6 +24,30 @@ class CreateUser(BaseModel):
     
 def authenticate_user(username, password, db):
     user = db.query(Users).filter(Users.username == username).first()
+    if user is None:
+        return False
+    if bcrypt_context.verify(password, user.hash_password):
+        return user
+    return False
+
+def create_access_token(username: str, user_id: int, expires_delta: timedelta):
+    encode = {'sub': username, 'id': user_id}
+    expires = datetime.now(timezone.utc) + expires_delta
+    encode.update({'exp': expires})
+    return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def get_current_user(token: Annotated[str, Depends(OAuth2_bearer)]):
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get('sub')
+        user_id: int = payload.get('id')
+        if username is None or user_id is None:
+            raise HTTPException(status_code=404, detail='User not found')
+        return {'username': username, 'id': user_id}
+    except:
+        raise HTTPException(status_code=404, detail='User not found')
+
 
 def get_db():
     db = SessionLocal()
@@ -56,3 +81,6 @@ def login_user(db : db_dependency, form_data: Annotated[OAuth2PasswordRequestFor
     user = authenticate_user(form_data.username, form_data.password, db) 
     if not user: 
         return "Failed authentication"
+    
+    token = create_access_token(user.username, user.id, timedelta(minutes=30))
+    return {'access_token': token, 'token_type': 'bearer'}
