@@ -1,27 +1,32 @@
 from fastapi import FastAPI, APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from datetime import timedelta, datetime, timezone
 from typing import Annotated
 from database import SessionLocal
 from models import Users
+from fastapi.responses import JSONResponse
 from passlib.context import CryptContext
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm, OAuth2PasswordBearer
 from jose import jwt, JWTError
 
 router = APIRouter()
 
-bcrypt_context = CryptContext(schema=['bcrypt'], deprecated='auto')
+bcrypt_context = CryptContext(schemes=['bcrypt'], deprecated='auto')
+OAuth2_bearer = OAuth2PasswordBearer(tokenUrl='login')
 
-class CreateUser(BaseModel):
+SECRET_KEY ='582d21990eafe55f86f381398958d3e7d9b101f0492ea5f5017bfe5c12e8187d'
+ALGORITHM = 'HS256' 
+
+class CreateUsers(BaseModel):
     email: str
     username: str
-    first_name: str
-    last_name: str
+    firstname: str
+    lastname: str
     password: str
-    role: str
-    
+    role : str
+
+
 def authenticate_user(username, password, db):
     user = db.query(Users).filter(Users.username == username).first()
     if user is None:
@@ -58,22 +63,24 @@ def get_db():
 
 db_dependency = Annotated[Session, Depends(get_db)]
 
-# Create a new user
-@router.post('/create-user/')
-def create_user(db : db_dependency, new_user : CreateUser):
+
+@router.post('/createuser')
+def create_users(db : db_dependency, new_user : CreateUsers):
     user_model = Users(
-        email=new_user.email,
-        username=new_user.username,
-        first_name=new_user.first_name,
-        last_name=new_user.last_name,
-        hashed_password=bcrypt_context.hash(new_user.password),
-        role=new_user.role
+        email = new_user.email,
+        username = new_user.username,
+        firstname = new_user.firstname,
+        lastname = new_user.lastname,
+        hash_password = bcrypt_context.hash(new_user.password),
+        is_active = True,
+        role = new_user.role
     )
 
     db.add(user_model)
     db.commit()
-    
+
     return JSONResponse(status_code=201, content={'message' : 'User created successfully'})
+
 
 @router.post('/login')
 def login_user(db : db_dependency, form_data: Annotated[OAuth2PasswordRequestForm, Depends()]):
